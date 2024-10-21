@@ -1,14 +1,14 @@
 #include "RoboMaster.h"
 #include <Arduino.h>
 
-MCP_CAN can0(10);
-
-int16_t fmap(double x, double in_min, double in_max, int16_t out_min, int16_t out_max) {
-  return (x - in_min) * ((double)(out_max - out_min)) / (in_max - in_min) + out_min;
-}
+MCP_CAN can0(6);
 
 namespace robomaster
 {
+  int16_t fmap(double x, double in_min, double in_max, int16_t out_min, int16_t out_max) {
+    return (x - in_min) * ((double)(out_max - out_min)) / (in_max - in_min) + out_min;
+  }
+
   void Motor::set_type(MotorType type)
   {
     type_ = type;
@@ -79,8 +79,6 @@ namespace robomaster
       motor[i].angle_ = 0;
       motor[i].rpm_ = 0;
       motor[i].output = 0;
-
-      recv_checker[i] = true;
     }
 
     len = 0;
@@ -108,7 +106,12 @@ namespace robomaster
     return motor[id-1].angle_;
   }
 
-  void RoboMaster::update()
+  int RoboMaster::getAmpare(uint8_t id)
+  {
+    return motor[id-1].amp_;
+  }
+
+  void RoboMaster::control()
   {
     txBuf1[0] = (motor[0].get_current() >> 8) & 0xFF;
     txBuf1[1] = motor[0].get_current() & 0xFF;
@@ -130,88 +133,77 @@ namespace robomaster
 
     if(millis() - Pre_millis > 50)
     {
-      // if(recv_checker[0] && recv_checker[1] && recv_checker[2] && recv_checker[3] && recv_checker[4] && recv_checker[5] && recv_checker[6] && recv_checker[7])
-      // {
-        can0.sendMsgBuf(0x200, 0, 8, txBuf1);
-        can0.sendMsgBuf(0x1FF, 0, 8, txBuf2);
-      // }
-
+      can0.sendMsgBuf(0x200, 0, 8, txBuf1);
+      can0.sendMsgBuf(0x1FF, 0, 8, txBuf2);
       Pre_millis = millis();
     }
+  }
 
-    // for(int i = 0; i < 8; i++)
-    // {
-    //   recv_checker[i] = check_recv(motor[i].type_);
-    // }
-
-    if (can0.checkReceive() == CAN_MSGAVAIL)
+  void RoboMaster::recvFeedBack()
     {
-      can0.readMsgBuf(&rxId, &len, rxBuf);
 
-      int16_t angle_data = rxBuf[0] << 8 | rxBuf[1];
-      int16_t rpm_data = rxBuf[2] << 8 | rxBuf[3];
-      int16_t amp = rxBuf[4] << 8 | rxBuf[5];
-      int8_t  temp = rxBuf[6];
-
-      int16_t angle = fmap(angle_data, 0, 8192, 0, 360);
-
-      if(rxId == 0x201)
+      if(can0.checkReceive() == CAN_MSGAVAIL)
       {
-        motor[0].angle_ = angle;
-        motor[0].rpm_ = rpm_data;
+        can0.readMsgBuf(&rxId, &len, rxBuf);
 
-        recv_checker[0] = true;
-      }
-      else if(rxId == 0x202)
-      {
-        motor[1].angle_ = angle;
-        motor[1].rpm_ = rpm_data;
+        int16_t angle_data = rxBuf[0] << 8 | rxBuf[1];
+        int16_t rpm_data = rxBuf[2] << 8 | rxBuf[3];
+        int16_t amp = rxBuf[4] << 8 | rxBuf[5];
+        int8_t  temp = rxBuf[6];
 
-        recv_checker[1] = true;
-      }
-      else if(rxId == 0x203)
-      {
-        motor[2].angle_ = angle;
-        motor[2].rpm_ = rpm_data;
+        int16_t angle = fmap(angle_data, 0, 8192, 0, 360);
 
-        recv_checker[2] = true;
-      }
-      else if(rxId == 0x204)
-      {
-        motor[3].angle_ = angle;
-        motor[3].rpm_ = rpm_data;
+        if(rxId == 0x201)
+        {
+          motor[0].angle_ = angle;
+          motor[0].rpm_ = rpm_data;
+          motor[0].amp_ = amp;
+        }
+        else if(rxId == 0x202)
+        {
+          motor[1].angle_ = angle;
+          motor[1].rpm_ = rpm_data;
+          motor[1].amp_ = amp;
 
-        recv_checker[3] = true;
-      }
-      else if(rxId == 0x205)
-      {
-        motor[4].angle_ = angle;
-        motor[4].rpm_ = rpm_data;
+        }
+        else if(rxId == 0x203)
+        {
+          motor[2].angle_ = angle;
+          motor[2].rpm_ = rpm_data;
+          motor[2].amp_ = amp;
+        }
+        else if(rxId == 0x204)
+        {
+          motor[3].angle_ = angle;
+          motor[3].rpm_ = rpm_data;
+          motor[3].amp_ = amp;
 
-        recv_checker[4] = true;
-      }
-      else if(rxId == 0x206)
-      {
-        motor[5].angle_ = angle;
-        motor[5].rpm_ = rpm_data;
-
-        recv_checker[5] = true;
-      }
-      else if(rxId == 0x207)
-      {
-        motor[6].angle_ = angle;
-        motor[6].rpm_ = rpm_data;
-
-        recv_checker[6] = true;
-      }
-      else if(rxId == 0x208)
-      {
-        motor[7].angle_ = angle;
-        motor[7].rpm_ = rpm_data;
-
-        recv_checker[7] = true;
+        }
+        else if(rxId == 0x205)
+        {
+          motor[4].angle_ = angle;
+          motor[4].rpm_ = rpm_data;
+          motor[4].amp_ = amp;
+        }
+        else if(rxId == 0x206)
+        {
+          motor[5].angle_ = angle;
+          motor[5].rpm_ = rpm_data;
+          motor[5].amp_ = amp;
+        }
+        else if(rxId == 0x207)
+        {
+          motor[6].angle_ = angle;
+          motor[6].rpm_ = rpm_data;
+          motor[6].amp_ = amp;
+        }
+        else if(rxId == 0x208)
+        {
+          motor[7].angle_ = angle;
+          motor[7].rpm_ = rpm_data;
+          motor[7].amp_ = amp;
+        }
       }
     }
-  }
 }
 
